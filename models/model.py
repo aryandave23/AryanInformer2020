@@ -44,42 +44,6 @@ class Informer(nn.Module):
             norm_layer=torch.nn.LayerNorm(d_model)
         )
 
-class PositionwiseFeedForward(nn.Module):
-    def __init__(self, d_model, d_ff):
-        super(PositionwiseFeedForward, self).__init__()
-        self.linear1 = nn.Linear(d_model, d_ff)
-        self.relu = nn.ReLU()
-        self.linear2 = nn.Linear(d_ff, d_model)
-
-    def forward(self, x):
-        return self.linear2(self.relu(self.linear1(x)))
-
-class ChannelwiseFeedForward(nn.Module):
-    def __init__(self, seq_len, d_ff):
-        super(ChannelwiseFeedForward, self).__init__()
-        self.linear1 = nn.Linear(seq_len, d_ff)
-        self.relu = nn.ReLU()
-        self.linear2 = nn.Linear(d_ff, seq_len)
-
-    def forward(self, x):
-        x = x.transpose(1, 2)  # Transpose to (batch_size, d_model, seq_len)
-        x = self.linear2(self.relu(self.linear1(x)))
-        return x.transpose(1, 2)  # Transpose back to (batch_size, seq_len, d_model)
-
-class InformerWithPCFFN(nn.Module):
-    def __init__(self, original_informer, d_ff):
-        super(InformerWithPCFFN, self).__init__()
-        self.informer = original_informer
-        self.position_ffn = PositionwiseFeedForward(self.informer.d_model, d_ff)
-        self.channel_ffn = ChannelwiseFeedForward(self.informer.seq_len, d_ff)
-
-    def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
-        enc_output = self.informer.encoder(x_enc, x_mark_enc)
-        enc_output = self.position_ffn(enc_output)
-        enc_output = self.channel_ffn(enc_output)
-        dec_output = self.informer.decoder(x_dec, x_mark_dec, enc_output)
-        return dec_output
-
         # Decoder
         self.decoder = Decoder(
             [
@@ -117,7 +81,41 @@ class InformerWithPCFFN(nn.Module):
         else:
             return dec_out[:,-self.pred_len:,:] # [B, L, D]
 
+class PositionwiseFeedForward(nn.Module):
+    def __init__(self, d_model, d_ff):
+        super(PositionwiseFeedForward, self).__init__()
+        self.linear1 = nn.Linear(d_model, d_ff)
+        self.relu = nn.ReLU()
+        self.linear2 = nn.Linear(d_ff, d_model)
 
+    def forward(self, x):
+        return self.linear2(self.relu(self.linear1(x)))
+
+class ChannelwiseFeedForward(nn.Module):
+    def __init__(self, seq_len, d_ff):
+        super(ChannelwiseFeedForward, self).__init__()
+        self.linear1 = nn.Linear(seq_len, d_ff)
+        self.relu = nn.ReLU()
+        self.linear2 = nn.Linear(d_ff, seq_len)
+
+    def forward(self, x):
+        x = x.transpose(1, 2)  # Transpose to (batch_size, d_model, seq_len)
+        x = self.linear2(self.relu(self.linear1(x)))
+        return x.transpose(1, 2)  # Transpose back to (batch_size, seq_len, d_model)
+
+class InformerWithPCFFN(nn.Module):
+    def __init__(self, original_informer, d_ff):
+        super(InformerWithPCFFN, self).__init__()
+        self.informer = original_informer
+        self.position_ffn = PositionwiseFeedForward(self.informer.d_model, d_ff)
+        self.channel_ffn = ChannelwiseFeedForward(self.informer.seq_len, d_ff)
+
+    def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
+        enc_output = self.informer.encoder(x_enc, x_mark_enc)
+        enc_output = self.position_ffn(enc_output)
+        enc_output = self.channel_ffn(enc_output)
+        dec_output = self.informer.decoder(x_dec, x_mark_dec, enc_output)
+        return dec_output
 class InformerStack(nn.Module):
     def __init__(self, enc_in, dec_in, c_out, seq_len, label_len, out_len, 
                 factor=5, d_model=512, n_heads=8, e_layers=[3,2,1], d_layers=2, d_ff=512, 
