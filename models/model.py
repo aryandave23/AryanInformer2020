@@ -43,8 +43,6 @@ class Informer(nn.Module):
             ] if distil else None,
             norm_layer=torch.nn.LayerNorm(d_model)
         )
-        import torch
-import torch.nn as nn
 
 class PositionwiseFeedForward(nn.Module):
     def __init__(self, d_model, d_ff):
